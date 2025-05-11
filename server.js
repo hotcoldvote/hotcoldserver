@@ -35,8 +35,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Function to back up sharedArray to GitHub as elobackup.json
 async function saveBackupToGitHub(arrayData) {
   const token = process.env.GITHUB_TOKEN;
-  const owner = 'your-github-username';         // <-- CHANGE THIS
-  const repo = 'your-repo-name';                // <-- CHANGE THIS
+  const owner = 'hotcoldvote';         // <-- CHANGE THIS
+  const repo = 'hotcoldserver';                // <-- CHANGE THIS
   const path = 'elobackup.json';                // <-- GitHub file name
 
   try {
