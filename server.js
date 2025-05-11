@@ -37,7 +37,7 @@ async function saveBackupToGitHub(arrayData) {
   const token = process.env.GITHUB_TOKEN;
   const owner = 'hotcoldvote';         // <-- CHANGE THIS
   const repo = 'hotcoldserver';                // <-- CHANGE THIS
-  const path = 'elobackup.json';                // <-- GitHub file name
+  const path = 'elo.json';                // <-- GitHub file name
 
   try {
     // Get current SHA to update the file
