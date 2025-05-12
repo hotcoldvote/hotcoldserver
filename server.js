@@ -36,8 +36,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 async function saveBackupToGitHub(arrayData) {
   const token = process.env.GITHUB_TOKEN;
   const owner = 'hotcoldvote';         // <-- CHANGE THIS
-  const repo = 'hotcoldserver';                // <-- CHANGE THIS
-  const path = 'elo.json';                // <-- GitHub file name
+  const repo = 'hotcoldserver';        // <-- CHANGE THIS
+  const path = 'elo.json';             // <-- GitHub file name
 
   try {
     // Get current SHA to update the file
@@ -67,12 +67,35 @@ async function saveBackupToGitHub(arrayData) {
   }
 }
 
+// reCAPTCHA verification middleware
+async function verifyRecaptcha(recaptchaToken) {
+  const secretKey = process.env.RECAPTCHA_SECRET_KEY;  // Add secret key to .env
+
+  try {
+    const response = await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify`,
+      null,
+      {
+        params: {
+          secret: secretKey,
+          response: recaptchaToken
+        }
+      }
+    );
+
+    return response.data.success;  // Returns true if verification is successful
+  } catch (err) {
+    console.error('reCAPTCHA verification failed:', err.message);
+    return false;
+  }
+}
+
 // WebSocket connection handling
 wss.on('connection', ws => {
   // Send current Elo array on connection
   ws.send(JSON.stringify({ type: 'array_update', data: sharedArray }));
 
-  ws.on('message', message => {
+  ws.on('message', async message => {
     const parsed = JSON.parse(message);
 
     if (parsed.type === 'request_array') {
@@ -80,20 +103,29 @@ wss.on('connection', ws => {
     }
 
     if (parsed.type === 'update_array') {
-      sharedArray = parsed.data;
+      // Verify reCAPTCHA before updating Elo scores
+      const recaptchaToken = parsed.recaptchaToken;  // Expecting the token from client
+      const isVerified = await verifyRecaptcha(recaptchaToken);
 
-      // Save to local file
-      fs.writeFileSync(pathToJSON, JSON.stringify(sharedArray, null, 2));
+      if (isVerified) {
+        sharedArray = parsed.data;
 
-      // Save to GitHub
-      saveBackupToGitHub(sharedArray);
+        // Save to local file
+        fs.writeFileSync(pathToJSON, JSON.stringify(sharedArray, null, 2));
 
-      // Broadcast to all clients
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: 'array_update', data: sharedArray }));
-        }
-      });
+        // Save to GitHub
+        saveBackupToGitHub(sharedArray);
+
+        // Broadcast to all clients
+        wss.clients.forEach(client => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: 'array_update', data: sharedArray }));
+          }
+        });
+      } else {
+        console.log('reCAPTCHA failed, update aborted.');
+        ws.send(JSON.stringify({ type: 'recaptcha_failed', message: 'reCAPTCHA verification failed' }));
+      }
     }
   });
 });
